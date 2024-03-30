@@ -1,11 +1,5 @@
 file_name = 'log.txt'
+chat_id = "your_telegram_chat_id"
+api_url = 'your_api_url'
 
-
-def write_to_file(filename, text):
-    try:
-        with open(filename, 'a', encoding="utf-8") as file:
-            file.write(text + '\n')
-    except FileNotFoundError:
-        with open(filename, 'w', encoding="utf-8") as file:
-            file.write(text + '\n')
-
+bot_token = "your_bot_token"

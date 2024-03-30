@@ -1,14 +1,14 @@
 import multiprocessing
 import time
 
-from dota2_upcoming_scraper import DotaUpcomingScraper
-from dota2_live_scraper import DotaScraper
-from cs2_live_scraper import CsScraper
-from cs2_upcoming_scraper import CsUpcomingScraper
-from lol_live_scraper import LolScraper
-from lol_upcoming_scraper import LolUpcomingScraper
-from ml_live_scraper import MlScraper
-from ml_upcoming_scraper import MlUpcomingScraper
+from scraper.dota2_upcoming_scraper import DotaUpcomingScraper
+from scraper.dota2_live_scraper import DotaScraper
+from scraper.cs2_live_scraper import CsScraper
+from scraper.cs2_upcoming_scraper import CsUpcomingScraper
+from scraper.lol_live_scraper import LolScraper
+from scraper.lol_upcoming_scraper import LolUpcomingScraper
+from scraper.ml_live_scraper import MlScraper
+from scraper.ml_upcoming_scraper import MlUpcomingScraper
 
 
 def run_scraper(scraper_class):
