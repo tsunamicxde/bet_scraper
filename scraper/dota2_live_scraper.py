@@ -19,7 +19,7 @@ game = "DOTA 2"
 class DotaScraper:
 
     def __init__(self):
-        self.conn = sqlite3.connect('../matches_data.db')
+        self.conn = sqlite3.connect('matches_data.db')
         self.cursor = self.conn.cursor()
 
     def setup_method(self):
@@ -31,10 +31,24 @@ class DotaScraper:
                                 id INTEGER PRIMARY KEY,
                                 left_team_name TEXT,
                                 right_team_name TEXT,
+                                league_name TEXT,
                                 common TEXT,
                                 r1 TEXT,
                                 r2 TEXT,
                                 r3 TEXT
+                            )''')
+
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS all_matches_data (
+                                        id INTEGER PRIMARY KEY,
+                                        left_team_name TEXT,
+                                        right_team_name TEXT,
+                                        league_name TEXT,
+                                        game TEXT,
+                                        common TEXT,
+                                        r1 TEXT,
+                                        r2 TEXT,
+                                        r3 TEXT,
+                                        date TIMESTAMP DEFAULT(datetime('now', 'localtime'))
                             )''')
         self.conn.commit()
 
@@ -176,17 +190,19 @@ class DotaScraper:
                     print(message)
                     write_to_file(file_name, message)
 
-                    new_common = result_dict['common']
-                    new_r1 = result_dict['r1']
+                    if len(result_dict['common']) < 2:
+                        result_dict['common'] = [0, 0]
+                    if len(result_dict['r1']) < 2:
+                        result_dict['r1'] = [0, 0]
+                    if len(result_dict['r2']) < 2:
+                        result_dict['r2'] = [0, 0]
+                    if len(result_dict['r3']) < 2:
+                        result_dict['r3'] = [0, 0]
 
-                    if not is_r2_available:
-                        new_r2 = [0, 0]
-                    else:
-                        new_r2 = result_dict['r2']
-                    if not is_r3_available:
-                        new_r3 = [0, 0]
-                    else:
-                        new_r3 = result_dict['r3']
+                    new_common = result_dict['common'] if result_dict['common'] else [0, 0]
+                    new_r1 = result_dict['r1'] if result_dict['r1'] else [0, 0]
+                    new_r2 = result_dict['r2'] if result_dict['r2'] else [0, 0]
+                    new_r3 = result_dict['r3'] if result_dict['r3'] else [0, 0]
 
                     try:
                         query = '''
@@ -196,7 +212,7 @@ class DotaScraper:
                                 '''
 
                         self.cursor.execute(query, (left_team_name, right_team_name))
-                        results = self.cursor.fetchall()[0]
+                        results = self.cursor.fetchone()
 
                         old_common, old_r1, old_r2, old_r3 = results
                         old_common = old_common.split(',')
@@ -209,27 +225,16 @@ class DotaScraper:
                         message = title
 
                         changing_the_coefficient_message = changing_the_coefficient(left_team_name, right_team_name,
-                                                                                    new_common, new_r1, new_r2,
-                                                                                    new_r3,
-                                                                                    old_common, old_r1, old_r2,
-                                                                                    old_r3)
+                                                                                    new_common, new_r1, new_r2, new_r3,
+                                                                                    old_common, old_r1, old_r2, old_r3)
 
                         if changing_the_coefficient_message != "":
                             message += changing_the_coefficient_message
-                            # send_message_to_api(message)
+                            send_message_to_api(message, left_team_name, right_team_name)
                             print(message)
 
                     except Exception:
                         pass
-
-                    if len(result_dict['common']) < 2:
-                        result_dict['common'] = [0, 0]
-                    if len(result_dict['common']) < 2:
-                        result_dict['r1'] = [0, 0]
-                    if len(result_dict['common']) < 2:
-                        result_dict['r2'] = [0, 0]
-                    if len(result_dict['common']) < 2:
-                        result_dict['r3'] = [0, 0]
 
                     common_values = ','.join(map(str, result_dict['common'])) if result_dict['common'] else "0,0"
                     r1_values = ','.join(map(str, result_dict['r1'])) if result_dict['r1'] else "0,0"
@@ -254,22 +259,51 @@ class DotaScraper:
                         ))
                         self.conn.commit()
                     except Exception:
-                        pass
                         self.conn.rollback()
 
                     try:
                         self.cursor.execute(''' 
-                                                INSERT INTO dota (left_team_name, right_team_name, common, r1, r2, r3)
-                                                SELECT ?, ?, ?, ?, ?, ?
+                                                INSERT INTO dota (left_team_name, right_team_name, league_name, common, r1, r2, r3)
+                                                SELECT ?, ?, ?, ?, ?, ?, ?
                                                 WHERE NOT EXISTS (
                                                     SELECT 1 FROM dota
                                                     WHERE left_team_name = ? AND right_team_name = ?
                                                 )
-                                            ''', (left_team_name, right_team_name, common_values, r1_values, r2_values,
+                                            ''', (left_team_name, right_team_name, league_name, common_values, r1_values, r2_values,
                                                   r3_values, left_team_name, right_team_name))
                         self.conn.commit()
                     except Exception:
                         self.conn.rollback()
+
+                    try:
+                        self.cursor.execute('''
+                                SELECT * FROM all_matches_data 
+                                WHERE left_team_name = ? AND right_team_name = ? 
+                                ORDER BY id DESC 
+                                LIMIT 1
+                            ''', (left_team_name, right_team_name))
+
+                        existing_record = self.cursor.fetchone()
+
+                        if existing_record is None:
+                            self.cursor.execute('''
+                                    INSERT INTO all_matches_data 
+                                    (left_team_name, right_team_name, league_name, game, common, r1, r2, r3) 
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                ''', (left_team_name, right_team_name, league_name, game, common_values, r1_values, r2_values, r3_values))
+                        else:
+                            last_common, last_r1, last_r2, last_r3 = existing_record[5:9]
+                            if last_common != common_values or last_r1 != r1_values or last_r2 != r2_values or last_r3 != r3_values:
+                                self.cursor.execute('''
+                                        INSERT INTO all_matches_data 
+                                        (left_team_name, right_team_name, league_name, game, common, r1, r2, r3) 
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    ''', (left_team_name, right_team_name, league_name, game, common_values, r1_values, r2_values, r3_values))
+                        self.conn.commit()
+                    except Exception as e:
+                        
+                        self.conn.rollback()
+
                     self.driver.get("https://rbvn3.com/")
                     time.sleep(3)
                     self.driver.find_element(By.CSS_SELECTOR, ".game-item:nth-child(2)").click()
